@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prédiction de Profit d'Entreprise</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+
+    <h1>Prédiction de Profit d'Entreprise</h1>    
+    <!-- Section : Upload du fichier CSV -->
+    <div class="section">
+      <h2>Charger le fichier CSV</h2>
+      {% if upload_message %}
+        <div class="alert-box">{{ upload_message }}</div>
+      {% endif %}
+      <form action="/upload_file" method="POST" enctype="multipart/form-data">
+        <div class="input-group">
+          <input type="file" name="file" accept=".csv" required>
+          <button type="submit">Charger le fichier</button>
+        </div>
+      </form>
+    </div>
+    
+    <!-- Section : Informations sur les données -->
+    <div class="section">
+    
+      <h2>Chargement des données</h2>
+      <div class="data-info">
+        <p>Variables indépendantes : <span class="highlight">{{ independent_vars }}</span></p>
+        <p>Variable cible : <span class="highlight">{{ target_var }}</span></p>
+        <p>Instances : <span class="highlight">{{ instance_count }}</span></p>
+        <p>Attributs : <span class="highlight">{{ attribute_count }}</span></p>
+        <h3 class="TitDatFram">DataFrame</h3>
+      </div>
+      <div class="data-table">
+        {{ data_preview | safe }}
+      </div>
+    </div>
+    
+    <!-- Section : Nettoyage des données -->
+    <div class="section">
+      <h2>Nettoyage des données</h2>
+      <div class="input-group">
+        <h3>Colonnes avec des valeurs manquantes :</h3>
+        <ul>
+          {% for col in missing_columns %}
+            <li>{{ col }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <form action="/clean" method="POST">
+        <div class="input-group">
+          <label>Valeurs manquantes détectées : <span class="highlight">{{ missing_rows_count }}</span></label>
+          <select name="missingStrategy" id="missingStrategy">
+            <option value="mean">Remplacer par la moyenne</option>
+            <option value="median">Remplacer par la médiane</option>
+            <option value="drop">Supprimer les lignes</option>
+          </select>
+          <button type="submit">Appliquer</button>
+        </div>
+      </form>
+    </div>
+    
+    <!-- Section : Encodage et Normalisation -->
+    <div class="section">
+      <h2>Encodage et Normalisation</h2>
+      <form action="/encode_normalize" method="POST">
+        <div class="input-group">
+          <div>
+            <h3>Encodage de 'State'</h3>
+            <select name="encodingMethod" id="encodingMethod">
+              <option value="onehot">One-Hot Encoding</option>
+              <option value="label">Label Encoding</option>
+              <option value="binary">Binary Encoding</option>
+            </select>
+          </div>
+          <div>
+            <h3 id="titNormalis">Normalisation</h3>
+            <select name="normalizationMethod" id="normalizationMethod">
+              <option value="minmax">Min-Max Scaling</option>
+              <option value="standard">Standardization</option>
+              <option value="maxabs">Maximum Absolu</option>
+              <option value="robuste">Robuste</option>
+              <option value="none">Aucune</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" id="EncodageBTN">Appliquer</button>
+      </form>
+    </div>
+    
+    <!-- Section : Réduction de dimension -->
+    <div class="section">
+      <h2 id="Tir_Reduction">Réduction de dimension</h2>
+      <div class="correlation-section">
+        <h3>Matrice de Corrélation</h3>
+        <form action="/generate_corr" method="POST">
+          <button type="submit" id="generateCorrButton">Générer Matrice</button>
+        </form>
+        {% if corr_image %}
+          <img src="{{ corr_image }}" alt="Matrice de Corrélation" style="width: 60%; height: 60%; margin-top: 10px;" id="img_Corr">
+        {% endif %}
+      </div>
+      <form action="/apply_pca" method="POST">
+        <div class="input-group" style="margin-top: 20px;">
+          <label>
+            <input type="checkbox" id="pcaCheckbox" name="applyPCA"> Appliquer ACP
+          </label>
+          <div id="pcaOptions" style="display: none;">
+            <input type="number" id="pcaComponents" name="pcaComponents" min="1" max="2" value="2">
+            composantes principales
+          </div>
+          <button type="submit" id="btnAppACP" style="display: none;">Appliquer ACP</button>
+        </div>
+      </form>
+      {% if pca_image %}
+        <img src="{{ pca_image }}" alt="Visualisation ACP" style="width: 60%; height: 60%; margin-top: 10px;" id="imgVIsuACP">
+      {% endif %}
+    </div>
+    
+    <!-- Section : Entraînement du modèle -->
+    <div class="section">
+      <h2>Entraînement du modèle</h2>
+      {% if train_message %}
+        <div id="trainingAlert" class="alert-box">{{ train_message }}</div>
+      {% endif %}
+      <form action="/train_model" method="POST">
+        <div class="input-group">
+          <div>
+            <label>Pourcentage d'entraînement :</label>
+            <input type="range" id="trainSplit" name="trainSplit" min="75" max="95" value="80" oninput="updateTrainValue()">
+            <span id="trainValue">80%</span>
+          </div>
+          <button type="submit" id="btnLancer">Lancer l'entraînement</button>
+        </div>
+      </form>
+      {% if train_message %}
+      <script>
+        window.onload = function() {
+          const alertDiv = document.getElementById('trainingAlert');
+          if(alertDiv) {
+            setTimeout(() => { alertDiv.remove(); }, 2000);
+          }
+        };
+      </script>
+      {% endif %}
+      <form action="/test_model" method="POST">
+        <button type="submit" id="btnTester">Tester le modèle</button>
+      </form>
+    </div>
+    
+    <!-- Section : Résultats et Visualisation -->
+    <div class="section">
+      <h2>Résultats</h2>
+      {% if test_message %}
+        <div class="test-alert">{{ test_message }}</div>
+      {% endif %}
+      {% if r2 and mse %}
+      <div class="metrics-container">
+        <div class="metric-card">
+          <div class="metric-label">R² Score</div>
+          <div class="metric-value">{{ "%.3f"|format(r2) }}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">MSE</div>
+          <div class="metric-value">{{ "%.3f"|format(mse) }}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">MAE</div>
+          <div class="metric-value">{{ "%.3f"|format(mse) }}</div>
+        </div>
+      </div>
+      {% endif %}
+      {% if plot_image %}
+      <div class="plot-container">
+        <img src="{{ plot_image }}" alt="Prédictions vs Réelles" class="result-plot">
+      </div>
+      {% endif %}
+    </div>
+    
+    <!-- Section : Nouvelle prédiction -->
+    <div class="section">
+      <h2>Nouvelle prédiction</h2>
+      <form action="/predict" method="POST">
+        <div class="input-group">
+          <input type="number" id="rdSpend" name="rdSpend" placeholder="R&D Spend" required>
+          <input type="number" id="administration" name="administration" placeholder="Administration" required>
+          <input type="number" id="marketingSpend" name="marketingSpend" placeholder="Marketing Spend" required>
+          <select id="stateInput" name="state" required>
+            <option value="">Sélectionnez un état</option>
+            <option value="NY">New York</option>
+            <option value="CA">California</option>
+          </select>
+        </div>
+        <button type="submit" id="btnPrediction">Effectuer la prédiction</button>
+      </form>
+      {% if predicted_profit is not none %}
+      <div class="prediction-result">
+        <p>Profit prédit : <span id="predictedProfit" class="highlight">{{ predicted_profit }} $</span></p>
+      </div>
+      {% endif %}
+    </div>
+    
+    <!-- Bouton de réinitialisation des données -->
+    <div class="reset-section">
+      <form action="/reset_data" method="POST" style="display: inline-block;">
+        <button type="submit" class="btn btn-danger">
+          <i class="fas fa-sync-alt"></i> Réinitialiser les données
+        </button>
+      </form>
+    </div>
+  
+  </div>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
